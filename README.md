@@ -34,6 +34,8 @@ See [`SETUP.md`](./SETUP.md) for step-by-step instructions to connect your own f
 | `index.html` | The entire app — room creation, student join form, live queue, teacher controls |
 | `firebase-config.js` | Your Firebase project's connection keys (edit this one) |
 | `firestore.rules` | Security rules to paste into the Firebase console |
+| `privacy.html` | The Privacy Policy page, linked from the footer of every screen |
+| `PRIVACY.md` | Plain-text source of the same privacy policy, for easy reading/editing outside the app |
 | `SETUP.md` | Full setup walkthrough |
 
 ## A note on the PIN

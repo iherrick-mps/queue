@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Help Queue</title>
+<style>
+  :root {
+    --bg: #000000;
+    --panel: #0a0a0a;
+    --border: #3d3d3d;
+    --text: #ffffff;
+    --text-muted: #cfcfcf;
+    --blue: #7ad4ef;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); }
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+    padding: 22px;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 680px; margin: 0 auto; }
+  .back-link { display: inline-block; color: var(--text-muted); text-decoration: underline; font-size: 14px; margin-bottom: 18px; font-weight: 600; }
+  .panel { background: var(--panel); border: 1.5px solid var(--border); border-radius: 14px; padding: 28px; }
+  h1 { font-size: 26px; margin: 0 0 6px 0; }
+  .updated { color: var(--text-muted); font-size: 13.5px; margin-bottom: 22px; }
+  h2 { font-size: 17px; margin: 28px 0 8px 0; }
+  h2:first-of-type { margin-top: 0; }
+  p, li { color: var(--text-muted); font-size: 15.5px; }
+  strong { color: var(--text); }
+  ul { padding-left: 20px; }
+  a { color: var(--blue); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back-link" href="javascript:history.back()">&larr; Back</a>
+  <div class="panel">
+    <h1>Privacy Policy</h1>
+    <div class="updated">Help Queue &middot; Last updated August 2026</div>
+
+    <h2>What we collect</h2>
+    <p>When a student joins a room's queue, the app stores:</p>
+    <ul>
+      <li>The name they typed (not verified &mdash; it's whatever they enter)</li>
+      <li>The problem description they typed</li>
+      <li>An automatic timestamp of when they joined</li>
+      <li>An automatic timestamp of when a teacher marks them "Helped" (if applicable)</li>
+    </ul>
+    <p>No accounts, emails, or logins are required, and none are collected.</p>
+
+    <h2>What it's used for</h2>
+    <p>Solely to display a live, ordered help queue to the teacher and students viewing that room while it's open. That's it &mdash; this data isn't used for grading, analytics, advertising, or any other purpose.</p>
+
+    <h2>Who can see it</h2>
+    <p>Anyone with a room's link can view that room's live queue while it's open &mdash; that's the intended use, the same way a name written on a classroom whiteboard would be visible to the class. A 4-digit PIN, known only to the teacher who created the room, is required to manage the queue (mark students helped, reorder, remove entries, end or delete the room, or export a CSV) through the app's interface.</p>
+
+    <h2>How long it's kept</h2>
+    <p><strong>Every room and everything in it is automatically and permanently deleted 24 hours after the room is created.</strong> This isn't optional or something a teacher has to remember to do &mdash; it's enforced by the hosting database's built-in expiration feature. If a teacher downloads a CSV before that window closes, that exported file is theirs to keep or delete as they choose &mdash; this policy only covers data inside the app itself.</p>
+
+    <h2>Where it's stored</h2>
+    <p>Data is stored in Google Firebase (Firestore), a cloud database, only for the 24-hour lifespan of a room. It is not shared with, or sold to, any third party.</p>
+
+    <h2>Questions</h2>
+    <p>Contact the teacher who set up this tool with any questions about how it's used in your classroom.</p>
+  </div>
+</div>
+</body>
+</html>

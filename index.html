@@ -13,6 +13,7 @@
     --border-strong: #ffffff;
     --text: #ffffff;
     --text-muted: #cfcfcf;
+    --text-dim: #8a8a8a;
     --blue: #7ad4ef;
     --amber: #ffcf5c;
     --green: #5be3a4;
@@ -61,7 +62,7 @@
   .btn-danger.small { padding: 8px 12px; font-size: 13.5px; }
   .btn-green { padding: 12px 18px; background: var(--green); color: #000000; }
   .btn-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
-  .code-display { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 18px; }
+  .code-display { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
   .code-box { flex: 1; min-width: 140px; background: var(--panel-2); border: 1.5px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
   .code-box .label { font-size: 12.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
   .code-box .value { font-size: 30px; font-weight: 700; color: var(--text); margin-top: 5px; letter-spacing: 0.05em; }
@@ -76,6 +77,8 @@
   .empty-state { text-align: center; padding: 44px 20px; color: var(--text-muted); font-size: 16px; }
   .ticket { display: flex; align-items: center; gap: 16px; background: var(--panel-2); border: 1.5px solid var(--border); border-radius: 11px; padding: 14px 16px; margin-bottom: 12px; flex-wrap: wrap; }
   .ticket.next { border-color: var(--amber); border-width: 2px; }
+  .ticket.helped { opacity: 0.6; border-style: dashed; }
+  .ticket.helped .ticket-name, .ticket.helped .note-text { color: var(--text-dim); }
   .pin-badge { width: 38px; height: 38px; border-radius: 8px; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; flex-shrink: 0; color: var(--text-muted); }
   .ticket.next .pin-badge { border-color: var(--amber); color: var(--amber); }
   .ticket-body { flex: 1; min-width: 160px; }
@@ -93,8 +96,10 @@
   .banner.warn { background: rgba(255,131,131,0.1); border-color: var(--red); color: var(--red); }
   .manage-link { display: inline-block; margin-top: 10px; color: var(--text-muted); font-size: 14px; cursor: pointer; text-decoration: underline; font-weight: 600; }
   .footer-note { text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 22px; }
+  .footer-note a { color: var(--text-muted); }
   .pin-inputs { display: flex; gap: 10px; margin-top: 10px; }
   .pin-inputs input { text-align: center; font-size: 22px; padding: 14px; }
+  .divider { height: 1px; background: var(--border); margin: 20px 0; border: none; }
   @media (max-width: 480px) {
     body { padding: 14px; font-size: 15px; }
     h1 { font-size: 23px; }
@@ -163,7 +168,6 @@ let state = {
   room: null,
   entries: [],
   unlocked: false,
-  createdInfo: null,
   pinEntryOpen: false,
   pinEntry: ['', '', '', ''],
   pinError: false,
@@ -176,7 +180,15 @@ function isExpired(room) {
   return !!(room && room.expiresAt && room.expiresAt.toDate && room.expiresAt.toDate().getTime() <= Date.now());
 }
 
+// Rebuilds the page HTML while preserving focus + cursor position on whatever
+// input the person is currently typing in, so live Firestore updates (or the
+// 5-second timer tick) don't interrupt someone mid-keystroke.
 function render() {
+  const active = document.activeElement;
+  const focusInfo = (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') && active.id)
+    ? { id: active.id, start: active.selectionStart, end: active.selectionEnd }
+    : null;
+
   const root = document.getElementById('root');
   let statusLabel = 'Room open';
   if (state.room) {
@@ -188,36 +200,29 @@ function render() {
   html += '</div></div>';
 
   if (state.view === 'home') html += renderHome();
-  else if (state.view === 'created') html += renderCreated();
   else if (state.view === 'loading') html += '<div class="panel"><p class="lead">Loading room&hellip;</p></div>';
   else if (state.view === 'notfound') html += '<div class="panel"><div class="banner warn">This room code doesn\'t exist, or it has already been deleted. Double-check the link with your teacher.</div></div>';
   else if (state.view === 'room') html += renderRoom();
 
-  html += '<div class="footer-note">Help Queue &middot; built for Ms. Herrick\'s classroom &middot; rooms auto-delete 24 hours after creation</div></div>';
+  html += '<div class="footer-note">Help Queue &middot; built for Ms. Herrick\'s classroom &middot; rooms auto-delete 24 hours after creation &middot; <a href="privacy.html">Privacy Policy</a></div></div>';
   root.innerHTML = html;
   wireEvents();
+
+  if (focusInfo) {
+    const el = document.getElementById(focusInfo.id);
+    if (el) {
+      el.focus();
+      if (typeof focusInfo.start === 'number' && el.setSelectionRange) {
+        try { el.setSelectionRange(focusInfo.start, focusInfo.end); } catch (e) { /* not all input types support this */ }
+      }
+    }
+  }
 }
 
 function renderHome() {
   let html = '<div class="panel">';
-  html += '<p class="lead">Create a new help queue room. You\'ll get a shareable link for students and a 4-digit PIN to manage the room. Every room deletes itself automatically 24 hours after it\'s created.</p>';
+  html += '<p class="lead">Create a new help queue room. You\'ll land straight in the teacher view with your room code, PIN, shareable link, and live queue all in one place. Every room deletes itself automatically 24 hours after it\'s created.</p>';
   html += '<button class="btn-primary" id="createBtn">Create New Room</button>';
-  html += '</div>';
-  return html;
-}
-
-function renderCreated() {
-  const info = state.createdInfo;
-  let html = '<div class="panel">';
-  html += '<div class="banner info">Room created. Save your PIN &mdash; you\'ll need it to manage this room from any other tab or device. This room deletes itself automatically in 24 hours.</div>';
-  html += '<div class="code-display">';
-  html += '<div class="code-box"><div class="label">Room Code</div><div class="value">' + info.code + '</div></div>';
-  html += '<div class="code-box"><div class="label">Manage PIN</div><div class="value">' + info.pin + '</div></div>';
-  html += '</div>';
-  html += '<label>Student link (share this)</label>';
-  html += '<div class="link-row"><input type="text" id="linkField" readonly value="' + esc(info.link) + '">';
-  html += '<button class="btn-outline" id="copyLinkBtn">Copy</button></div>';
-  html += '<div class="btn-row"><button class="btn-primary" id="goToRoomBtn" style="margin-top:0;flex:1;">Open This Room</button></div>';
   html += '</div>';
   return html;
 }
@@ -235,10 +240,26 @@ function renderRoom() {
   html += '</div>';
 
   if (!expired && room.expiresAt && room.expiresAt.toDate) {
-    html += '<div class="ticket-meta" style="margin-bottom:14px;">' + hoursMinsLeft(room.expiresAt.toDate()) + ' until this room auto-deletes</div>';
+    html += '<div class="ticket-meta" style="margin-bottom:16px;">' + hoursMinsLeft(room.expiresAt.toDate()) + ' until this room auto-deletes</div>';
   }
 
-  if (!state.unlocked) {
+  if (state.unlocked) {
+    // Teacher view: identity + share info always visible, plus management controls.
+    html += '<div class="code-display">';
+    html += '<div class="code-box"><div class="label">Room Code</div><div class="value">' + state.roomCode + '</div></div>';
+    html += '<div class="code-box"><div class="label">Manage PIN</div><div class="value">' + room.pin + '</div></div>';
+    html += '</div>';
+    html += '<label>Student link</label>';
+    html += '<div class="link-row"><input type="text" id="linkField" readonly value="' + esc(roomLink(state.roomCode)) + '">';
+    html += '<button class="btn-outline" id="copyLinkBtn">Copy</button></div>';
+    html += '<hr class="divider">';
+    html += '<div class="btn-row">';
+    if (isActive) html += '<button class="btn-danger" id="endRoomBtn">End Room</button>';
+    else if (!expired) html += '<button class="btn-green" id="reopenRoomBtn">Reopen Room</button>';
+    html += '<button class="btn-outline" id="exportBtn">Download CSV</button>';
+    html += '<button class="btn-danger" id="deleteRoomBtn">Delete Room Permanently</button>';
+    html += '</div>';
+  } else {
     if (isActive) {
       if (state.justJoined) {
         html += '<div class="banner info">You\'re in the queue. Your teacher will call you when it\'s your turn. Feel free to close this tab.</div>';
@@ -256,18 +277,11 @@ function renderRoom() {
     if (state.pinEntryOpen) {
       html += '<div class="pin-inputs">';
       for (let i = 0; i < 4; i++) {
-        html += '<input type="tel" maxlength="1" class="pin-digit" data-idx="' + i + '" value="' + esc(state.pinEntry[i]) + '">';
+        html += '<input type="tel" maxlength="1" id="pinDigit' + i + '" class="pin-digit" data-idx="' + i + '" value="' + esc(state.pinEntry[i]) + '">';
       }
       html += '</div>';
       if (state.pinError) html += '<div class="banner warn" style="margin-top:12px;">Incorrect PIN.</div>';
     }
-  } else {
-    html += '<div class="btn-row">';
-    if (isActive) html += '<button class="btn-danger" id="endRoomBtn">End Room</button>';
-    else if (!expired) html += '<button class="btn-green" id="reopenRoomBtn">Reopen Room</button>';
-    html += '<button class="btn-outline" id="exportBtn">Download CSV</button>';
-    html += '<button class="btn-danger" id="deleteRoomBtn">Delete Room Permanently</button>';
-    html += '</div>';
   }
   html += '</div>';
 
@@ -301,6 +315,28 @@ function renderRoom() {
   }
   html += '</div>';
 
+  // Already Helped (teacher view only)
+  if (state.unlocked) {
+    const helpedEntries = state.entries
+      .filter(e => e.helpedAt)
+      .sort((a, b) => (b.helpedAtDate ? b.helpedAtDate.getTime() : 0) - (a.helpedAtDate ? a.helpedAtDate.getTime() : 0));
+    html += '<div class="panel">';
+    html += '<div class="board-head"><div class="board-count">ALREADY HELPED</div><div class="board-count">' + helpedEntries.length + '</div></div>';
+    if (helpedEntries.length === 0) {
+      html += '<div class="empty-state" style="padding:24px;">No one\'s been marked helped yet.</div>';
+    } else {
+      helpedEntries.forEach(e => {
+        html += '<div class="ticket helped">';
+        html += '<div class="ticket-body">';
+        html += '<div class="ticket-name">' + esc(e.name) + '</div>';
+        html += '<div class="ticket-meta">helped ' + (e.helpedAtDate ? e.helpedAtDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '') + '</div>';
+        html += '<div class="note-text">' + esc(e.problem) + '</div>';
+        html += '</div></div>';
+      });
+    }
+    html += '</div>';
+  }
+
   return html;
 }
 
@@ -324,12 +360,6 @@ function wireEvents() {
     setTimeout(() => { copyLinkBtn.textContent = 'Copy'; }, 1500);
   };
 
-  const goToRoomBtn = document.getElementById('goToRoomBtn');
-  if (goToRoomBtn) goToRoomBtn.onclick = () => {
-    sessionStorage.setItem('unlocked_' + state.createdInfo.code, '1');
-    window.location.search = '?room=' + state.createdInfo.code;
-  };
-
   const nameInput = document.getElementById('nameInput');
   if (nameInput) nameInput.oninput = e => { state.name = e.target.value; updateJoinBtn(); };
   const problemInput = document.getElementById('problemInput');
@@ -343,7 +373,7 @@ function wireEvents() {
     state.pinEntryOpen = !state.pinEntryOpen;
     state.pinError = false;
     render();
-    const first = document.querySelector('.pin-digit[data-idx="0"]');
+    const first = document.getElementById('pinDigit0');
     if (first) first.focus();
   };
 
@@ -354,7 +384,7 @@ function wireEvents() {
       state.pinEntry[idx] = val;
       e.target.value = val;
       if (val && idx < 3) {
-        const next = document.querySelector('.pin-digit[data-idx="' + (idx + 1) + '"]');
+        const next = document.getElementById('pinDigit' + (idx + 1));
         if (next) next.focus();
       }
       if (state.pinEntry.every(d => d !== '')) checkPin();
@@ -362,7 +392,7 @@ function wireEvents() {
     inp.onkeydown = e => {
       const idx = parseInt(e.target.getAttribute('data-idx'), 10);
       if (e.key === 'Backspace' && !e.target.value && idx > 0) {
-        const prev = document.querySelector('.pin-digit[data-idx="' + (idx - 1) + '"]');
+        const prev = document.getElementById('pinDigit' + (idx - 1));
         if (prev) prev.focus();
       }
     };
@@ -418,9 +448,10 @@ async function handleCreateRoom() {
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     expiresAt
   });
-  state.createdInfo = { code, pin, link: roomLink(code) };
-  state.view = 'created';
-  render();
+  // Unlock this tab for the new room before navigating, so creating a room
+  // drops you straight into the full teacher view - code, PIN, link, queue, CSV.
+  sessionStorage.setItem('unlocked_' + code, '1');
+  window.location.search = '?room=' + code;
 }
 
 async function handleJoin() {
@@ -510,6 +541,7 @@ function attachRoomListeners() {
           name: data.name,
           problem: data.problem,
           helpedAt: data.helpedAt,
+          helpedAtDate: data.helpedAt && data.helpedAt.toDate ? data.helpedAt.toDate() : null,
           order: typeof data.order === 'number' ? data.order : (data.timestamp && data.timestamp.toMillis ? data.timestamp.toMillis() : 0),
           timestampDate: data.timestamp && data.timestamp.toDate ? data.timestamp.toDate() : null
         };

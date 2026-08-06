@@ -28,7 +28,7 @@ That's it for Firebase — the free (Spark) tier's limits are far beyond what a 
 
 1. Go to https://github.com and log in (or create a free account).
 2. Click **New repository**. Name it something like `help-queue`. Keep it **Public** (Pages is free and simplest on public repos — the Firebase rules already keep your actual data locked down by room code, so this is fine).
-3. On the new repo page, click **Add file → Upload files**, and drag in `index.html` and your edited `firebase-config.js`. Commit the changes.
+3. On the new repo page, click **Add file → Upload files**, and drag in `index.html`, `privacy.html`, and your edited `firebase-config.js`. Commit the changes.
 4. Go to the repo's **Settings → Pages**.
 5. Under "Build and deployment," set **Source** to **Deploy from a branch**, branch **main**, folder **/ (root)**. Click **Save**.
 6. Wait about a minute, then refresh — GitHub will show you your live URL, something like:
@@ -38,10 +38,9 @@ That link is your home page. Bookmark it.
 
 ## How you'll actually use it
 
-- Open your GitHub Pages link, click **Create New Room**.
-- You'll get a **room code**, a **4-digit PIN**, and a **student link** — copy the student link into Google Classroom or a bookmark for that class period. When you click "Open This Room," that tab is automatically unlocked into teacher view — no need to re-enter the PIN there.
+- Open your GitHub Pages link, click **Create New Room**. This now drops you straight into the full teacher view for that room — code, PIN, shareable link, live queue, and CSV export all in one place, no extra click needed.
 - Students open the student link, type their name and problem, and appear live in the queue for everyone (including you) to see.
-- In teacher view you can: mark someone **Helped** (removes them from the live queue but keeps them in the CSV record), **Remove** someone entirely (for mistaken or duplicate entries — this does *not* appear in the CSV), and use the **▲ / ▼** arrows to reorder the queue by hand.
+- In teacher view you can: mark someone **Helped** (moves them into a greyed-out "Already Helped" list below the live queue, and keeps them in the CSV record), **Remove** someone entirely (for mistaken or duplicate entries — this does *not* appear in the CSV), and use the **▲ / ▼** arrows to reorder the queue by hand.
 - **End Room** stops new requests but keeps the data viewable and exportable (handy at the end of a period). **Reopen Room** undoes that.
 - **Delete Room Permanently** immediately and irreversibly wipes the room and its whole queue — download your CSV first if you want a record.
 - Every room **automatically deletes itself 24 hours after creation**, whether or not you ever touch it, so nothing lingers in your Firebase project. Make a **new room** each class period (or each day) — it takes about five seconds and keeps each period's data separate and easy to export in the meantime.
