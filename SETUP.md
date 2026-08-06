@@ -28,7 +28,7 @@ That's it for Firebase — the free (Spark) tier's limits are far beyond what a 
 
 1. Go to https://github.com and log in (or create a free account).
 2. Click **New repository**. Name it something like `help-queue`. Keep it **Public** (Pages is free and simplest on public repos — the Firebase rules already keep your actual data locked down by room code, so this is fine).
-3. On the new repo page, click **Add file → Upload files**, and drag in `index.html`, `privacy.html`, and your edited `firebase-config.js`. Commit the changes.
+3. On the new repo page, click **Add file → Upload files**, and drag in `index.html`, `privacy.html`, `PRIVACY.md`, and your edited `firebase-config.js`. Commit the changes.
 4. Go to the repo's **Settings → Pages**.
 5. Under "Build and deployment," set **Source** to **Deploy from a branch**, branch **main**, folder **/ (root)**. Click **Save**.
 6. Wait about a minute, then refresh — GitHub will show you your live URL, something like:

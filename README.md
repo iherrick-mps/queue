@@ -31,12 +31,14 @@ See [`SETUP.md`](./SETUP.md) for step-by-step instructions to connect your own f
 
 | File | Purpose |
 |---|---|
-| `index.html` | The entire app — room creation, student join form, live queue, teacher controls |
+| `index.html` | The entire app — room creation, student join form, live queue, teacher controls, accent color picker |
 | `firebase-config.js` | Your Firebase project's connection keys (edit this one) |
 | `firestore.rules` | Security rules to paste into the Firebase console |
-| `privacy.html` | The Privacy Policy page, linked from the footer of every screen |
-| `PRIVACY.md` | Plain-text source of the same privacy policy, for easy reading/editing outside the app |
+| `privacy.html` | The Privacy Policy page, linked from the footer of every screen — renders `PRIVACY.md` directly |
+| `PRIVACY.md` | The actual privacy policy text. Edit this file to change what's shown — `privacy.html` just displays it, so there's only one copy to maintain |
 | `SETUP.md` | Full setup walkthrough |
+
+> `privacy.html` fetches `PRIVACY.md` at runtime, so both files need to be uploaded to the repo together for the policy page to work.
 
 ## A note on the PIN
 
