@@ -36,6 +36,7 @@ See [`SETUP.md`](./SETUP.md) for step-by-step instructions to connect your own f
 | `firestore.rules` | Security rules to paste into the Firebase console |
 | `privacy.html` | The Privacy Policy page, linked from the footer of every screen — renders `PRIVACY.md` directly |
 | `PRIVACY.md` | The actual privacy policy text. Edit this file to change what's shown — `privacy.html` just displays it, so there's only one copy to maintain |
+| `queue.ico` | The browser tab icon (favicon) |
 | `SETUP.md` | Full setup walkthrough |
 
 > `privacy.html` fetches `PRIVACY.md` at runtime, so both files need to be uploaded to the repo together for the policy page to work.
