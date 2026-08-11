@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Help Queue</title>
-<link rel="icon" type="image/x-icon" href="queue.ico">
+<link rel="icon" type="image/x-icon" href="queue.ico" id="faviconLink">
 <style>
   :root {
     --bg: #000000;
@@ -187,6 +187,72 @@ function applyAccent(hex) {
   document.documentElement.style.setProperty('--accent', hex);
 }
 
+// --- Tab title + favicon badge, so a waiting student is visible even when this
+// tab isn't focused (the closest thing a static site can do to an "address bar" alert).
+let baseIconImg = null;
+function loadBaseIcon() {
+  const img = new Image();
+  img.onload = () => { baseIconImg = img; updateNotificationUI(); };
+  img.src = 'queue.ico';
+}
+function updateFaviconBadge(count) {
+  const link = document.getElementById('faviconLink');
+  if (!link) return;
+  if (!baseIconImg || count <= 0) {
+    link.href = 'queue.ico';
+    return;
+  }
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(baseIconImg, 0, 0, size, size);
+  const label = count > 9 ? '9+' : String(count);
+  const r = size * 0.32;
+  const cx = size - r - 2, cy = r + 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#ff3b3b';
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#000000';
+  ctx.stroke();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold ' + Math.round(r * 1.15) + 'px Helvetica, Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, cx, cy + 1);
+  link.href = canvas.toDataURL('image/png');
+}
+function updateNotificationUI() {
+  const activeCount = (state.unlocked && state.view === 'room')
+    ? state.entries.filter(e => !e.helpedAt).length
+    : 0;
+  document.title = (activeCount > 0 ? '(' + activeCount + ') ' : '') + 'Help Queue' + (state.roomCode ? ' \u2013 ' + state.roomCode : '');
+  updateFaviconBadge(activeCount);
+}
+
+// --- Optional background system notifications (needs a permission grant; skip quietly if blocked).
+let previousActiveIds = new Set();
+function toggleNotifications() {
+  if (!state.notifEnabled) {
+    if (typeof Notification === 'undefined') { alert('Notifications aren\'t supported in this browser.'); return; }
+    Notification.requestPermission().then(perm => {
+      if (perm === 'granted') {
+        state.notifEnabled = true;
+        setCookie('hq_notif_enabled', '1', 365);
+      } else {
+        alert('Notifications were blocked by the browser. The tab title and icon will still change when someone joins the queue.');
+      }
+      render();
+    });
+  } else {
+    state.notifEnabled = false;
+    setCookie('hq_notif_enabled', '0', 365);
+    render();
+  }
+}
+
 function clockHtml() {
   const now = new Date();
   const y = now.getFullYear();
@@ -223,8 +289,10 @@ let state = {
   justJoined: false,
   accentColor: getCookie('hq_accent_color') || DEFAULT_ACCENT,
   settingsOpen: false,
+  notifEnabled: getCookie('hq_notif_enabled') === '1',
 };
 applyAccent(state.accentColor);
+loadBaseIcon();
 
 function isExpired(room) {
   return !!(room && room.expiresAt && room.expiresAt.toDate && room.expiresAt.toDate().getTime() <= Date.now());
@@ -257,6 +325,7 @@ function render() {
   html += '<div class="footer-note">Help Queue &middot; built for Ms. Herrick\'s classroom &middot; rooms auto-delete 24 hours after creation &middot; <a href="privacy.html">Privacy Policy</a></div></div>';
   root.innerHTML = html;
   wireEvents();
+  updateNotificationUI();
 
   if (focusInfo) {
     const el = document.getElementById(focusInfo.id);
@@ -312,6 +381,8 @@ function renderRoom() {
       html += '<input type="color" id="accentColorPicker" value="' + (HEX_RE.test(state.accentColor) && state.accentColor.length === 7 ? state.accentColor : DEFAULT_ACCENT) + '">';
       html += '<input type="text" id="accentHexInput" class="mono" maxlength="7" value="' + esc(state.accentColor) + '" placeholder="#7ad4ef">';
       html += '</div>';
+      html += '<label>Notifications <span class="accent-hint">the tab title and icon already badge automatically &mdash; this adds a popup alert too</span></label>';
+      html += '<button class="btn-outline" id="notifToggleBtn" style="width:100%;">' + (state.notifEnabled ? '\uD83D\uDD14 Background notifications: On (tap to turn off)' : '\uD83D\uDD14 Turn on background notifications') + '</button>';
       html += '<hr class="divider">';
       html += '<div class="btn-row">';
       if (isActive) html += '<button class="btn-danger" id="endRoomBtn">End Room</button>';
@@ -415,6 +486,9 @@ function wireEvents() {
 
   const settingsToggleBtn = document.getElementById('settingsToggleBtn');
   if (settingsToggleBtn) settingsToggleBtn.onclick = () => { state.settingsOpen = !state.settingsOpen; render(); };
+
+  const notifToggleBtn = document.getElementById('notifToggleBtn');
+  if (notifToggleBtn) notifToggleBtn.onclick = toggleNotifications;
 
   const copyLinkBtn = document.getElementById('copyLinkBtn');
   if (copyLinkBtn) copyLinkBtn.onclick = () => {
@@ -629,7 +703,7 @@ function attachRoomListeners() {
   db.collection('rooms').doc(state.roomCode).collection('entries')
     .orderBy('timestamp', 'asc')
     .onSnapshot(snap => {
-      state.entries = snap.docs.map(d => {
+      const mapped = snap.docs.map(d => {
         const data = d.data();
         return {
           id: d.id,
@@ -641,6 +715,18 @@ function attachRoomListeners() {
           timestampDate: data.timestamp && data.timestamp.toDate ? data.timestamp.toDate() : null
         };
       });
+
+      const newActiveIds = new Set(mapped.filter(e => !e.helpedAt).map(e => e.id));
+      if (state.notifEnabled && document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        mapped.forEach(e => {
+          if (!e.helpedAt && !previousActiveIds.has(e.id)) {
+            try { new Notification('New help request', { body: e.name + ': ' + e.problem, icon: 'queue.ico' }); } catch (err) { /* ignore */ }
+          }
+        });
+      }
+      previousActiveIds = newActiveIds;
+
+      state.entries = mapped;
       render();
     });
 }
