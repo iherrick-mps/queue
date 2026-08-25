@@ -856,11 +856,11 @@ async function handleCreateRoom() {
   // Unlock this tab for the new room before navigating, so creating a room
   // drops you straight into the full teacher view - code, PIN, link, queue, CSV.
   localStorage.setItem('unlocked_' + code, '1');
-  // Copy the room code to the clipboard right away. The page is about to
-  // reload into the new room, so stash a flag to show the "copied" toast
-  // once that reload lands.
+  // Copy the shareable student link to the clipboard right away. The page is
+  // about to reload into the new room, so stash a flag to show the "copied"
+  // toast once that reload lands.
   try {
-    await navigator.clipboard.writeText(code);
+    await navigator.clipboard.writeText(roomLink(code));
     sessionStorage.setItem('hq_toast_copied_code', code);
   } catch (e) { /* clipboard permission denied — just skip the toast */ }
   window.location.search = '?room=' + code;
@@ -978,7 +978,7 @@ function attachRoomListeners() {
     const copiedCode = sessionStorage.getItem('hq_toast_copied_code');
     if (copiedCode && copiedCode === state.roomCode) {
       sessionStorage.removeItem('hq_toast_copied_code');
-      showToast('Room code ' + state.roomCode + ' copied to clipboard!');
+      showToast('Room link copied to clipboard!');
     }
     if (state.room.accentColor && HEX_RE.test(state.room.accentColor)) {
       state.accentColor = state.room.accentColor;
