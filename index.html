@@ -126,10 +126,58 @@
     h1 { font-size: 23px; }
     .code-box .value { font-size: 24px; }
   }
+
+  /* --- Toasts --- */
+  #toastHost { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+  .toast { background: var(--text); color: #000000; font-weight: 700; font-size: 14.5px; padding: 12px 18px; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.4); opacity: 0; transform: translateY(-10px); transition: opacity 0.25s ease, transform 0.25s ease; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* --- Teacher -> student messaging --- */
+  .msg-btn { background: transparent; border: 1.5px solid var(--blue); color: var(--blue); }
+  .msg-btn:hover { background: color-mix(in srgb, var(--blue) 15%, transparent); }
+  .msg-tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 6px; margin-top: 6px; }
+  .msg-tag.unread { background: rgba(255,131,131,0.15); color: var(--red); border: 1.5px solid var(--red); }
+  .msg-tag.read { background: color-mix(in srgb, var(--green) 12%, transparent); color: var(--green); border: 1.5px solid var(--green); }
+  .msg-compose { width: 100%; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
+  .msg-compose textarea { min-height: 60px; }
+  .msg-compose .btn-row { margin-top: 10px; }
+  .banner.message { background: color-mix(in srgb, var(--red) 10%, transparent); border-color: var(--red); }
+  .banner.message .btn-outline { margin-top: 10px; }
+
+  /* --- Floating bell schedule bento --- */
+  #bellBento {
+    position: fixed; bottom: 18px; right: 18px; z-index: 500;
+    background: var(--panel); border: 1.5px solid var(--border); border-radius: 14px;
+    padding: 14px 18px; min-width: 168px; box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: var(--text);
+    transition: opacity 0.2s ease;
+  }
+  #bellBento .bb-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  #bellBento .bb-time { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  #bellBento .bb-toggle { background: transparent; border: none; color: var(--text-muted); font-size: 13px; cursor: pointer; padding: 2px 4px; }
+  #bellBento .bb-toggle:hover { color: var(--text); }
+  #bellBento .bb-period { font-size: 13.5px; color: var(--text-muted); font-weight: 700; margin-top: 6px; }
+  #bellBento .bb-countdown { font-size: 15.5px; font-weight: 700; color: var(--accent); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  #bellBento.collapsed .bb-period, #bellBento.collapsed .bb-countdown { display: none; }
+  @media (max-width: 480px) {
+    #bellBento { bottom: 12px; right: 12px; padding: 10px 14px; min-width: 130px; }
+    #bellBento .bb-time { font-size: 17px; }
+  }
 </style>
 </head>
 <body>
 <div id="root"></div>
+
+<div id="toastHost" aria-live="polite"></div>
+
+<div id="bellBento">
+  <div class="bb-head">
+    <div class="bb-time" id="bbTime">--:--</div>
+    <button class="bb-toggle" id="bbToggle" title="Collapse/expand">&#9660;</button>
+  </div>
+  <div class="bb-period" id="bbPeriod">Loading schedule&hellip;</div>
+  <div class="bb-countdown" id="bbCountdown"></div>
+</div>
 
 <!-- Firebase SDKs (static hosting compatible, no build step needed) -->
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
@@ -187,6 +235,21 @@ function applyAccent(hex) {
   document.documentElement.style.setProperty('--accent', hex);
 }
 
+// --- Simple toast notifications (top-center, auto-dismiss) ---
+function showToast(message, ms = 3200) {
+  const host = document.getElementById('toastHost');
+  if (!host) return;
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = message;
+  host.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 300);
+  }, ms);
+}
+
 // --- Tab title + favicon badge, so a waiting student is visible even when this
 // tab isn't focused (the closest thing a static site can do to an "address bar" alert).
 let baseIconImg = null;
@@ -195,10 +258,12 @@ function loadBaseIcon() {
   img.onload = () => { baseIconImg = img; updateNotificationUI(); };
   img.src = 'queue.ico';
 }
-function updateFaviconBadge(count) {
+// dotOnly draws a plain red dot with no number (used for "you have a message"
+// on a student's tab, where a count badge wouldn't make sense).
+function updateFaviconBadge(count, dotOnly) {
   const link = document.getElementById('faviconLink');
   if (!link) return;
-  if (!baseIconImg || count <= 0) {
+  if (!baseIconImg || (count <= 0 && !dotOnly)) {
     link.href = 'queue.ico';
     return;
   }
@@ -207,7 +272,6 @@ function updateFaviconBadge(count) {
   canvas.width = size; canvas.height = size;
   const ctx = canvas.getContext('2d');
   ctx.drawImage(baseIconImg, 0, 0, size, size);
-  const label = count > 9 ? '9+' : String(count);
   const r = size * 0.32;
   const cx = size - r - 2, cy = r + 2;
   ctx.beginPath();
@@ -217,19 +281,36 @@ function updateFaviconBadge(count) {
   ctx.lineWidth = 3;
   ctx.strokeStyle = '#000000';
   ctx.stroke();
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold ' + Math.round(r * 1.15) + 'px Helvetica, Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(label, cx, cy + 1);
+  if (count > 0) {
+    const label = count > 9 ? '9+' : String(count);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold ' + Math.round(r * 1.15) + 'px Helvetica, Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, cx, cy + 1);
+  }
   link.href = canvas.toDataURL('image/png');
 }
 function updateNotificationUI() {
-  const activeCount = (state.unlocked && state.view === 'room')
-    ? state.entries.filter(e => !e.helpedAt).length
-    : 0;
-  document.title = (activeCount > 0 ? '(' + activeCount + ') ' : '') + 'Help Queue' + (state.roomCode ? ' \u2013 ' + state.roomCode : '');
-  updateFaviconBadge(activeCount);
+  let badgeCount = 0;
+  let dotOnly = false;
+  let titlePrefix = '';
+
+  if (state.unlocked && state.view === 'room') {
+    // Teacher tab: badge = students currently waiting.
+    badgeCount = state.entries.filter(e => !e.helpedAt).length;
+    if (badgeCount > 0) titlePrefix = '(' + badgeCount + ') ';
+  } else if (state.view === 'room' && state.myEntryId) {
+    // Student tab: red dot only, for "your teacher messaged you."
+    const mine = state.entries.find(e => e.id === state.myEntryId);
+    if (mine && mine.teacherMessage && !mine.teacherMessage.read) {
+      dotOnly = true;
+      titlePrefix = '\u25CF ';
+    }
+  }
+
+  document.title = titlePrefix + 'Help Queue' + (state.roomCode ? ' \u2013 ' + state.roomCode : '');
+  updateFaviconBadge(badgeCount, dotOnly);
 }
 
 // --- Optional background system notifications (needs a permission grant; skip quietly if blocked).
@@ -290,9 +371,121 @@ let state = {
   accentColor: getCookie('hq_accent_color') || DEFAULT_ACCENT,
   settingsOpen: false,
   notifEnabled: getCookie('hq_notif_enabled') === '1',
+  myEntryId: roomParam ? localStorage.getItem('hq_my_entry_' + roomParam) : null,
+  messagingId: null,
+  messageDraft: '',
 };
+let redirectScheduled = false;
 applyAccent(state.accentColor);
 loadBaseIcon();
+
+// --- Floating "time left in class" bento, driven by the agenda board's own
+// bells.json (fetched cross-origin from its repo, since this is a separate
+// static site). Runs independently of the main render() loop so its
+// per-second countdown doesn't get wiped by Firestore-driven re-renders.
+const BELLS_URL = 'https://raw.githubusercontent.com/iherrick-mps/agenda-board/main/bells.json';
+const AGENDA_DATA_BASE = 'https://raw.githubusercontent.com/iherrick-mps/agenda-board/main/data/';
+let bellsCache = null;
+
+function getPacificNow() {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    weekday: 'long'
+  }).formatToParts(now);
+  const get = (type) => parts.find(p => p.type === type)?.value;
+  return {
+    hours: parseInt(get('hour'), 10),
+    minutes: parseInt(get('minute'), 10),
+    seconds: parseInt(get('second'), 10),
+    weekdayName: get('weekday'),
+    isoDate: `${get('year')}-${get('month')}-${get('day')}`
+  };
+}
+function bbMinutesSinceMidnight({ hours, minutes, seconds }) { return hours * 60 + minutes + seconds / 60; }
+function bbHhmmToMinutes(hhmm) { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; }
+function bbFmtClock({ hours, minutes }) {
+  const h12 = ((hours + 11) % 12) + 1;
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  return h12 + ':' + String(minutes).padStart(2, '0') + ' ' + ampm;
+}
+function bbFmtCountdown(totalMinutes) {
+  const totalSeconds = Math.max(0, Math.round(totalMinutes * 60));
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  const mm = String(m).padStart(2, '0');
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+async function loadBellSchedule() {
+  if (bellsCache) return bellsCache;
+  try {
+    const res = await fetch(BELLS_URL);
+    bellsCache = await res.json();
+  } catch (e) { bellsCache = null; }
+  return bellsCache;
+}
+async function resolveTodaysBellSchedule(pt) {
+  try {
+    const res = await fetch(AGENDA_DATA_BASE + pt.isoDate + '.json');
+    if (res.ok) {
+      const dayData = await res.json();
+      if (dayData.schedule) return dayData.schedule;
+    }
+  } catch (e) { /* fall through to weekday default */ }
+  if (pt.weekdayName === 'Wednesday') return 'shortened';
+  if (pt.weekdayName === 'Saturday') return 'saturday';
+  return 'regular';
+}
+function bbFindCurrentAndNext(periods, nowMin) {
+  let current = null, next = null;
+  for (const p of periods) {
+    const start = bbHhmmToMinutes(p.start), end = bbHhmmToMinutes(p.end);
+    if (nowMin >= start && nowMin < end) current = p;
+    if (start > nowMin && (!next || start < bbHhmmToMinutes(next.start))) next = p;
+  }
+  return { current, next };
+}
+async function updateBellBento() {
+  const timeEl = document.getElementById('bbTime');
+  const periodEl = document.getElementById('bbPeriod');
+  const countdownEl = document.getElementById('bbCountdown');
+  if (!timeEl) return;
+  const pt = getPacificNow();
+  timeEl.textContent = bbFmtClock(pt);
+
+  const bells = await loadBellSchedule();
+  if (!bells) { periodEl.textContent = 'Bell schedule unavailable'; countdownEl.textContent = ''; return; }
+
+  const scheduleKey = await resolveTodaysBellSchedule(pt);
+  const scheduleData = bells[scheduleKey];
+  if (!scheduleData) { periodEl.textContent = 'No schedule today'; countdownEl.textContent = ''; return; }
+
+  const nowMin = bbMinutesSinceMidnight(pt);
+  const { current, next } = bbFindCurrentAndNext(scheduleData.periods, nowMin);
+  if (current) {
+    periodEl.textContent = current.name;
+    countdownEl.textContent = bbFmtCountdown(bbHhmmToMinutes(current.end) - nowMin) + ' left';
+  } else if (next) {
+    periodEl.textContent = 'Next: ' + next.name;
+    countdownEl.textContent = 'starts in ' + bbFmtCountdown(bbHhmmToMinutes(next.start) - nowMin);
+  } else {
+    periodEl.textContent = 'No more periods today';
+    countdownEl.textContent = '';
+  }
+}
+const bbToggle = document.getElementById('bbToggle');
+if (bbToggle) bbToggle.onclick = () => {
+  const bento = document.getElementById('bellBento');
+  bento.classList.toggle('collapsed');
+  bbToggle.innerHTML = bento.classList.contains('collapsed') ? '&#9650;' : '&#9660;';
+};
+updateBellBento();
+setInterval(updateBellBento, 1000);
 
 function isExpired(room) {
   return !!(room && room.expiresAt && room.expiresAt.toDate && room.expiresAt.toDate().getTime() <= Date.now());
@@ -321,6 +514,13 @@ function render() {
   else if (state.view === 'loading') html += '<div class="panel"><p class="lead">Loading room&hellip;</p></div>';
   else if (state.view === 'notfound') html += '<div class="panel"><div class="banner warn">This room code doesn\'t exist, or it has already been deleted. Double-check the link with your teacher.</div></div>';
   else if (state.view === 'room') html += renderRoom();
+
+  // Once a room is expired, send everyone back to the home page automatically
+  // after a short beat (so the "Expired" message is still visible for a moment).
+  if (state.view === 'room' && state.room && isExpired(state.room) && !redirectScheduled) {
+    redirectScheduled = true;
+    setTimeout(() => { window.location.href = window.location.pathname; }, 4000);
+  }
 
   html += '<div class="footer-note">Help Queue &middot; built for Ms. Herrick\'s classroom &middot; rooms auto-delete 24 hours after creation &middot; <a href="privacy.html">Privacy Policy</a></div></div>';
   root.innerHTML = html;
@@ -361,6 +561,9 @@ function renderRoom() {
   if (!expired && room.expiresAt && room.expiresAt.toDate) {
     html += '<div class="ticket-meta" style="margin-bottom:16px;">' + hoursMinsLeft(room.expiresAt.toDate()) + ' until this room auto-deletes</div>';
   }
+  if (expired) {
+    html += '<div class="banner warn" style="margin-bottom:16px;">This room has expired and its data is gone. Taking you back to the home page&hellip;</div>';
+  }
 
   if (state.unlocked) {
     // Teacher view: everything collapsed behind an obvious toggle, so the live queue is front and center.
@@ -393,6 +596,13 @@ function renderRoom() {
       html += '</div>';
     }
   } else {
+    if (state.myEntryId) {
+      const mine = state.entries.find(e => e.id === state.myEntryId);
+      if (mine && mine.teacherMessage && !mine.teacherMessage.read) {
+        html += '<div class="banner warn message">Your teacher asked: &ldquo;' + esc(mine.teacherMessage.text) + '&rdquo;';
+        html += '<div><button class="btn-outline" id="ackMessageBtn">Got it</button></div></div>';
+      }
+    }
     if (isActive) {
       if (state.justJoined) {
         html += '<div class="banner info">You\'re in the queue. Your teacher will call you when it\'s your turn. Feel free to close this tab.</div>';
@@ -432,6 +642,18 @@ function renderRoom() {
       html += '<div class="ticket-name">' + esc(e.name) + '</div>';
       html += '<div class="ticket-meta">' + (e.timestampDate ? timeAgo(e.timestampDate) : 'just now') + '</div>';
       html += '<div class="note-text">' + esc(e.problem) + '</div>';
+      if (state.unlocked && e.teacherMessage) {
+        html += '<div class="msg-tag ' + (e.teacherMessage.read ? 'read' : 'unread') + '">' + (e.teacherMessage.read ? '\u2713 Message seen' : 'Message sent \u2013 unread') + '</div>';
+      }
+      if (state.unlocked && state.messagingId === e.id) {
+        html += '<div class="msg-compose">';
+        html += '<label>Ask ' + esc(e.name) + ' a question</label>';
+        html += '<textarea id="messageDraftInput" placeholder="e.g. Which line is the error on?">' + esc(state.messageDraft) + '</textarea>';
+        html += '<div class="btn-row">';
+        html += '<button class="btn-primary" style="margin-top:0;" data-send-message="' + e.id + '"' + (state.messageDraft.trim() ? '' : ' disabled') + '>Send</button>';
+        html += '<button class="btn-outline" data-cancel-message="1">Cancel</button>';
+        html += '</div></div>';
+      }
       html += '</div>';
       if (state.unlocked) {
         html += '<div class="ticket-actions">';
@@ -439,6 +661,7 @@ function renderRoom() {
         html += '<button class="icon-btn" data-move="up" data-id="' + e.id + '"' + (i === 0 ? ' disabled' : '') + '>&#9650;</button>';
         html += '<button class="icon-btn" data-move="down" data-id="' + e.id + '"' + (i === activeEntries.length - 1 ? ' disabled' : '') + '>&#9660;</button>';
         html += '</div>';
+        html += '<button class="btn-outline small msg-btn" data-message="' + e.id + '">' + (state.messagingId === e.id ? 'Close' : '\uD83D\uDCAC Message') + '</button>';
         html += '<button class="btn-danger small" data-remove="' + e.id + '">Remove</button>';
         html += '<button class="helped-btn" data-id="' + e.id + '">Helped</button>';
         html += '</div>';
@@ -585,6 +808,33 @@ function wireEvents() {
   document.querySelectorAll('[data-move]').forEach(btn => {
     btn.onclick = () => moveEntry(btn.getAttribute('data-id'), btn.getAttribute('data-move'));
   });
+
+  document.querySelectorAll('[data-message]').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.getAttribute('data-message');
+      state.messagingId = state.messagingId === id ? null : id;
+      state.messageDraft = '';
+      render();
+    };
+  });
+
+  const messageDraftInput = document.getElementById('messageDraftInput');
+  if (messageDraftInput) messageDraftInput.oninput = e => {
+    state.messageDraft = e.target.value;
+    const sendBtn = document.querySelector('[data-send-message]');
+    if (sendBtn) sendBtn.disabled = !state.messageDraft.trim();
+  };
+
+  document.querySelectorAll('[data-send-message]').forEach(btn => {
+    btn.onclick = () => sendTeacherMessage(btn.getAttribute('data-send-message'));
+  });
+
+  document.querySelectorAll('[data-cancel-message]').forEach(btn => {
+    btn.onclick = () => { state.messagingId = null; state.messageDraft = ''; render(); };
+  });
+
+  const ackMessageBtn = document.getElementById('ackMessageBtn');
+  if (ackMessageBtn) ackMessageBtn.onclick = markMessageRead;
 }
 
 function updateJoinBtn() {
@@ -605,22 +855,54 @@ async function handleCreateRoom() {
   });
   // Unlock this tab for the new room before navigating, so creating a room
   // drops you straight into the full teacher view - code, PIN, link, queue, CSV.
-  sessionStorage.setItem('unlocked_' + code, '1');
+  localStorage.setItem('unlocked_' + code, '1');
+  // Copy the room code to the clipboard right away. The page is about to
+  // reload into the new room, so stash a flag to show the "copied" toast
+  // once that reload lands.
+  try {
+    await navigator.clipboard.writeText(code);
+    sessionStorage.setItem('hq_toast_copied_code', code);
+  } catch (e) { /* clipboard permission denied — just skip the toast */ }
   window.location.search = '?room=' + code;
 }
 
 async function handleJoin() {
   if (!state.name.trim() || !state.problem.trim()) return;
-  await db.collection('rooms').doc(state.roomCode).collection('entries').add({
+  const docRef = await db.collection('rooms').doc(state.roomCode).collection('entries').add({
     name: state.name.trim(),
     problem: state.problem.trim(),
     timestamp: firebase.firestore.FieldValue.serverTimestamp(),
     order: Date.now(),
     helpedAt: null,
-    expiresAt: state.room.expiresAt
+    expiresAt: state.room.expiresAt,
+    teacherMessage: null
   });
+  // Remember this is "my" ticket so a refresh or a new tab still knows which
+  // entry to watch for a teacher message.
+  localStorage.setItem('hq_my_entry_' + state.roomCode, docRef.id);
+  state.myEntryId = docRef.id;
   state.justJoined = true;
   render();
+}
+
+async function sendTeacherMessage(entryId) {
+  const text = state.messageDraft.trim();
+  if (!text) return;
+  await db.collection('rooms').doc(state.roomCode).collection('entries').doc(entryId).update({
+    teacherMessage: { text, sentAt: firebase.firestore.FieldValue.serverTimestamp(), read: false }
+  });
+  state.messagingId = null;
+  state.messageDraft = '';
+  showToast('Message sent.');
+  render();
+}
+
+async function markMessageRead() {
+  if (!state.myEntryId) return;
+  try {
+    await db.collection('rooms').doc(state.roomCode).collection('entries').doc(state.myEntryId)
+      .update({ 'teacherMessage.read': true });
+  } catch (e) { /* entry may have been removed/helped already */ }
 }
 
 function commitAccent(hex) {
@@ -639,7 +921,7 @@ function checkPin() {
     state.unlocked = true;
     state.pinEntryOpen = false;
     state.pinError = false;
-    sessionStorage.setItem('unlocked_' + state.roomCode, '1');
+    localStorage.setItem('unlocked_' + state.roomCode, '1');
   } else {
     state.pinError = true;
     state.pinEntry = ['', '', '', ''];
@@ -692,7 +974,12 @@ function attachRoomListeners() {
     }
     state.room = doc.data();
     if (state.view === 'loading') state.view = 'room';
-    if (sessionStorage.getItem('unlocked_' + state.roomCode) === '1') state.unlocked = true;
+    if (localStorage.getItem('unlocked_' + state.roomCode) === '1') state.unlocked = true;
+    const copiedCode = sessionStorage.getItem('hq_toast_copied_code');
+    if (copiedCode && copiedCode === state.roomCode) {
+      sessionStorage.removeItem('hq_toast_copied_code');
+      showToast('Room code ' + state.roomCode + ' copied to clipboard!');
+    }
     if (state.room.accentColor && HEX_RE.test(state.room.accentColor)) {
       state.accentColor = state.room.accentColor;
       applyAccent(state.accentColor);
@@ -712,7 +999,8 @@ function attachRoomListeners() {
           helpedAt: data.helpedAt,
           helpedAtDate: data.helpedAt && data.helpedAt.toDate ? data.helpedAt.toDate() : null,
           order: typeof data.order === 'number' ? data.order : (data.timestamp && data.timestamp.toMillis ? data.timestamp.toMillis() : 0),
-          timestampDate: data.timestamp && data.timestamp.toDate ? data.timestamp.toDate() : null
+          timestampDate: data.timestamp && data.timestamp.toDate ? data.timestamp.toDate() : null,
+          teacherMessage: data.teacherMessage || null
         };
       });
 
