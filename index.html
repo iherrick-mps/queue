@@ -121,6 +121,26 @@
   .pin-inputs { display: flex; gap: 10px; margin-top: 10px; }
   .pin-inputs input { text-align: center; font-size: 22px; padding: 14px; }
   .divider { height: 1px; background: var(--border); margin: 20px 0; border: none; }
+
+  /* --- Home screen: one big code box, teacher controls tucked away --- */
+  .join-panel { padding: 34px 24px 28px; text-align: center; }
+  .join-title { font-size: 21px; font-weight: 700; margin-bottom: 18px; }
+  input[type=text].code-entry {
+    text-align: center;
+    font-size: clamp(42px, 15vw, 72px);
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-indent: 0.18em; /* offsets the trailing letter-space so it looks centered */
+    text-transform: uppercase;
+    padding: 18px 10px;
+    border-width: 2px;
+    border-radius: 12px;
+  }
+  input[type=text].code-entry::placeholder { color: var(--text-dim); opacity: 0.5; }
+  .join-hint { color: var(--text-muted); font-size: 14px; margin-top: 14px; }
+  .teacher-row { text-align: center; margin-top: 26px; }
+  .teacher-row .btn-outline { border-color: var(--border); color: var(--text-muted); font-weight: 600; }
+  .teacher-row .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
   @media (max-width: 480px) {
     body { padding: 14px; font-size: 15px; }
     h1 { font-size: 23px; }
@@ -391,6 +411,9 @@ let state = {
   pinError: false,
   name: '',
   problem: '',
+  // what's typed into the code box on the home screen. Kept in state so the
+  // periodic re-render doesn't wipe it out mid-typing.
+  homeCode: '',
   justJoined: false,
   accentColor: getCookie('hq_accent_color') || DEFAULT_ACCENT,
   settingsOpen: false,
@@ -540,7 +563,7 @@ function render() {
 
   if (state.view === 'home') html += renderHome();
   else if (state.view === 'loading') html += '<div class="panel"><p class="lead">Loading room&hellip;</p></div>';
-  else if (state.view === 'notfound') html += '<div class="panel"><div class="banner warn">This room code doesn\'t exist, or it has already been deleted. Double-check the link with your teacher.</div></div>';
+  else if (state.view === 'notfound') html += '<div class="panel"><div class="banner warn">This room code doesn\'t exist, or it has already been deleted. Double-check the code on the board.</div><button class="btn-outline" id="backHomeBtn">Try another code</button></div>';
   else if (state.view === 'room') html += renderRoom();
 
   // Once a room is expired, send everyone back to the home page automatically
@@ -567,10 +590,19 @@ function render() {
 }
 
 function renderHome() {
-  let html = '<div class="panel">';
-  html += '<p class="lead">Create a new help queue room. You\'ll land straight in the teacher view with your room code, PIN, shareable link, and live queue all in one place. Every room deletes itself automatically 24 hours after it\'s created.</p>';
-  html += '<button class="btn-primary" id="createBtn">Create New Room</button>';
+  // Students are almost everybody who lands here, and all they have is the
+  // five-character code off the board, so that's the whole screen. Creating
+  // a room is a teacher job that happens once a day, so it sits small at the
+  // bottom, out of the way.
+  const code = state.homeCode || '';
+  let html = '<div class="panel join-panel">';
+  html += '<div class="join-title">Enter your class code</div>';
+  html += '<input type="text" id="homeCodeInput" class="code-entry mono" value="' + esc(code) + '"';
+  html += ' maxlength="5" placeholder="ABCDE" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">';
+  html += '<button class="btn-primary" id="goBtn"' + (code.length === 5 ? '' : ' disabled') + '>Go to the Queue</button>';
+  html += '<div class="join-hint">Your teacher has the code on the board.</div>';
   html += '</div>';
+  html += '<div class="teacher-row"><button class="btn-outline small" id="createBtn">For teachers: create a new room</button></div>';
   return html;
 }
 
@@ -814,6 +846,41 @@ function wireEvents() {
   const createBtn = document.getElementById('createBtn');
   if (createBtn) createBtn.onclick = handleCreateRoom;
 
+  const homeCodeInput = document.getElementById('homeCodeInput');
+  if (homeCodeInput) {
+    homeCodeInput.oninput = e => {
+      // codes are always five uppercase letters/digits, so quietly fix
+      // capitals, spaces and stray punctuation instead of scolding
+      const clean = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+      e.target.value = clean;
+      state.homeCode = clean;
+      const goBtn = document.getElementById('goBtn');
+      if (goBtn) goBtn.disabled = clean.length !== 5;
+    };
+    homeCodeInput.onkeydown = e => { if (e.key === 'Enter') goToTypedRoom(); };
+    // if someone pastes the whole link from Classroom, pull the code out of it
+    homeCodeInput.onpaste = e => {
+      const pasted = (e.clipboardData || window.clipboardData).getData('text') || '';
+      const match = pasted.match(/[?&]room=([A-Za-z0-9]+)/);
+      if (!match) return;
+      e.preventDefault();
+      const clean = match[1].toUpperCase().slice(0, 5);
+      e.target.value = clean;
+      state.homeCode = clean;
+      const btn = document.getElementById('goBtn');
+      if (btn) btn.disabled = clean.length !== 5;
+    };
+    // put the cursor in the box on arrival, but only once - re-grabbing it on
+    // every timed re-render would yank focus off the button mid-click
+    if (!homeFocusDone) { homeCodeInput.focus(); homeFocusDone = true; }
+  }
+
+  const goBtn = document.getElementById('goBtn');
+  if (goBtn) goBtn.onclick = goToTypedRoom;
+
+  const backHomeBtn = document.getElementById('backHomeBtn');
+  if (backHomeBtn) backHomeBtn.onclick = () => { window.location.search = ''; };
+
   document.querySelectorAll('[data-tab]').forEach(btn => {
     btn.onclick = () => {
       state.queueTab = btn.getAttribute('data-tab');
@@ -956,6 +1023,17 @@ function wireEvents() {
 
   const ackMessageBtn = document.getElementById('ackMessageBtn');
   if (ackMessageBtn) ackMessageBtn.onclick = markMessageRead;
+}
+
+let homeFocusDone = false;
+
+// Sending the typed code through the normal ?room= address means a code typed
+// by hand and a link tapped in Classroom land in exactly the same place, and a
+// bad code still gets the existing "that room doesn't exist" screen.
+function goToTypedRoom() {
+  const code = (state.homeCode || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (code.length !== 5) return;
+  window.location.search = '?room=' + code;
 }
 
 function updateJoinBtn() {
