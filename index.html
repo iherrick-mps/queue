@@ -144,6 +144,30 @@
   .banner.message { background: color-mix(in srgb, var(--red) 10%, transparent); border-color: var(--red); }
   .banner.message .btn-outline { margin-top: 10px; }
 
+  /* --- Queue view-mode tabs (Full / Names Only / Anonymous) --- */
+  .view-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .view-tab {
+    padding: 10px 15px; background: transparent; border: 1.5px solid var(--border);
+    color: var(--text-muted); border-radius: 9px; font-size: 14px; font-weight: 700;
+  }
+  .view-tab:hover { border-color: var(--accent); color: var(--text); }
+  .view-tab.active { background: var(--accent); border-color: var(--accent); color: #000000; }
+  .tab-hint { font-size: 13px; color: var(--text-dim); font-weight: 600; margin-bottom: 16px; line-height: 1.5; }
+  .ticket.names-only { gap: 14px; }
+  .you-tag {
+    display: inline-block; font-size: 11.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 2px 7px; border-radius: 5px; margin-left: 8px;
+    border: 1.5px solid var(--accent); color: var(--accent); vertical-align: middle;
+  }
+  .anon-wrap { text-align: center; padding: 40px 20px 34px; }
+  .anon-number { font-size: 78px; font-weight: 700; line-height: 1; }
+  .anon-label { font-size: 14px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 10px; }
+  .anon-you { margin-top: 24px; font-size: 20px; font-weight: 700; color: var(--accent); }
+  @media (max-width: 480px) {
+    .anon-number { font-size: 60px; }
+    .view-tab { padding: 9px 12px; font-size: 13.5px; }
+  }
+
   /* --- Floating bell schedule bento --- */
   #bellBento {
     position: fixed; bottom: 18px; right: 18px; z-index: 500;
@@ -374,6 +398,10 @@ let state = {
   myEntryId: roomParam ? localStorage.getItem('hq_my_entry_' + roomParam) : null,
   messagingId: null,
   messageDraft: '',
+  // Which queue view is showing: 'full' (names + problems + teacher controls),
+  // 'names' (names + wait time only), or 'anon' (head count only).
+  // null means "use the default for who I am" — full for the teacher, anon for students.
+  queueTab: null,
 };
 let redirectScheduled = false;
 applyAccent(state.accentColor);
@@ -546,10 +574,78 @@ function renderHome() {
   return html;
 }
 
+// Resolves which queue view is showing. Teachers land on the full queue,
+// students land on the fully anonymous head count. 'full' is teacher-only, so a
+// student can never end up there even if the state says so.
+function currentQueueTab() {
+  let tab = state.queueTab || (state.unlocked ? 'full' : 'anon');
+  if (tab === 'full' && !state.unlocked) tab = 'anon';
+  return tab;
+}
+
+const TAB_HINTS = {
+  teacher: {
+    full: 'Everything \u2014 names, what each student needs, and your controls.',
+    names: 'Names and wait times only. What students asked for help with stays hidden, the same way a raised hand doesn\u2019t announce the problem. Safe to project.',
+    anon: 'A head count and nothing else. Safe to project.'
+  },
+  student: {
+    names: 'Who\u2019s waiting and how long they\u2019ve been waiting. What anyone asked for help with stays private.',
+    anon: 'How many people are waiting, and how many are ahead of you.'
+  }
+};
+
+function renderQueueTabs(tab) {
+  const tabs = state.unlocked
+    ? [['full', 'Full Queue'], ['names', 'Names Only'], ['anon', 'Anonymous']]
+    : [['anon', 'Anonymous'], ['names', 'Names Only']];
+  let html = '<div class="view-tabs">';
+  tabs.forEach(t => {
+    html += '<button class="view-tab' + (tab === t[0] ? ' active' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>';
+  });
+  html += '</div>';
+  const hints = state.unlocked ? TAB_HINTS.teacher : TAB_HINTS.student;
+  if (hints[tab]) html += '<div class="tab-hint">' + hints[tab] + '</div>';
+  return html;
+}
+
+// Names + wait time, nothing else. Read-only for everybody, including the teacher.
+function renderNamesQueue(activeEntries) {
+  if (activeEntries.length === 0) return '<div class="empty-state">Queue is empty right now.</div>';
+  let html = '';
+  activeEntries.forEach((e, i) => {
+    const isMe = !state.unlocked && e.id === state.myEntryId;
+    html += '<div class="ticket names-only' + (i === 0 ? ' next' : '') + '">';
+    html += '<div class="pin-badge">' + (i + 1) + '</div>';
+    html += '<div class="ticket-body">';
+    html += '<div class="ticket-name">' + esc(e.name) + (isMe ? '<span class="you-tag">you</span>' : '') + '</div>';
+    html += '<div class="ticket-meta">' + (e.timestampDate ? timeAgo(e.timestampDate) : 'just now') + '</div>';
+    html += '</div></div>';
+  });
+  return html;
+}
+
+// True anonymous mode: a number. Students in the queue also get their own
+// place in line, since that's the one thing that's theirs to know.
+function renderAnonQueue(activeEntries) {
+  const n = activeEntries.length;
+  let html = '<div class="anon-wrap">';
+  html += '<div class="anon-number mono">' + n + '</div>';
+  html += '<div class="anon-label">' + (n === 1 ? 'student waiting' : 'students waiting') + '</div>';
+  if (!state.unlocked && state.myEntryId) {
+    const idx = activeEntries.findIndex(e => e.id === state.myEntryId);
+    if (idx === 0) html += '<div class="anon-you">You\u2019re next.</div>';
+    else if (idx > 0) html += '<div class="anon-you">' + idx + (idx === 1 ? ' person' : ' people') + ' ahead of you.</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
 function renderRoom() {
   const room = state.room;
   const expired = isExpired(room);
   const isActive = room.active !== false && !expired;
+  const tab = currentQueueTab();
   let html = '';
 
   html += '<div class="panel">';
@@ -565,8 +661,9 @@ function renderRoom() {
     html += '<div class="banner warn" style="margin-bottom:16px;">This room has expired and its data is gone. Taking you back to the home page&hellip;</div>';
   }
 
-  if (state.unlocked) {
+  if (state.unlocked && tab === 'full') {
     // Teacher view: everything collapsed behind an obvious toggle, so the live queue is front and center.
+    // Only in the full view — the room PIN shouldn't be one click away on a projected screen.
     html += '<button class="settings-toggle" id="settingsToggleBtn">';
     html += '<span class="gear-icon">&#9881;</span> ' + (state.settingsOpen ? 'Hide Room Settings' : 'Room Settings (code, PIN, link, colors, more)');
     html += '</button>';
@@ -595,7 +692,7 @@ function renderRoom() {
       html += '</div>';
       html += '</div>';
     }
-  } else {
+  } else if (!state.unlocked) {
     if (state.myEntryId) {
       const mine = state.entries.find(e => e.id === state.myEntryId);
       if (mine && mine.teacherMessage && !mine.teacherMessage.read) {
@@ -631,6 +728,14 @@ function renderRoom() {
   // Live queue
   const activeEntries = state.entries.filter(e => !e.helpedAt).sort((a, b) => a.order - b.order);
   html += '<div class="panel">';
+  html += renderQueueTabs(tab);
+
+  if (tab === 'anon') {
+    html += renderAnonQueue(activeEntries);
+  } else if (tab === 'names') {
+    html += '<div class="board-head"><div class="board-count">LIVE QUEUE</div><div class="board-count">' + activeEntries.length + ' WAITING</div></div>';
+    html += renderNamesQueue(activeEntries);
+  } else {
   html += '<div class="board-head"><div class="board-count">LIVE QUEUE</div><div class="board-count">' + activeEntries.length + ' WAITING</div></div>';
   if (activeEntries.length === 0) {
     html += '<div class="empty-state">Queue is empty right now.</div>';
@@ -669,10 +774,12 @@ function renderRoom() {
       html += '</div>';
     });
   }
+  }
   html += '</div>';
 
-  // Already Helped (teacher view only)
-  if (state.unlocked) {
+  // Already Helped (teacher view only, and only in the full view — it lists
+  // what each student needed, so it stays off the privacy views).
+  if (state.unlocked && tab === 'full') {
     const helpedEntries = state.entries
       .filter(e => e.helpedAt)
       .sort((a, b) => (b.helpedAtDate ? b.helpedAtDate.getTime() : 0) - (a.helpedAtDate ? a.helpedAtDate.getTime() : 0));
@@ -706,6 +813,20 @@ function timeAgo(date) {
 function wireEvents() {
   const createBtn = document.getElementById('createBtn');
   if (createBtn) createBtn.onclick = handleCreateRoom;
+
+  document.querySelectorAll('[data-tab]').forEach(btn => {
+    btn.onclick = () => {
+      state.queueTab = btn.getAttribute('data-tab');
+      // Leaving the full view closes settings, so switching to a privacy view is
+      // always one click and never leaves the PIN on screen.
+      if (state.queueTab !== 'full') {
+        state.settingsOpen = false;
+        state.messagingId = null;
+        state.messageDraft = '';
+      }
+      render();
+    };
+  });
 
   const settingsToggleBtn = document.getElementById('settingsToggleBtn');
   if (settingsToggleBtn) settingsToggleBtn.onclick = () => { state.settingsOpen = !state.settingsOpen; render(); };
