@@ -745,6 +745,7 @@ function renderRoom() {
     html += '<button class="settings-toggle" id="settingsToggleBtn">';
     html += '<span class="gear-icon">&#9881;</span> ' + (state.settingsOpen ? 'Hide Room Settings' : 'Room Settings (code, PIN, link, colors, more)');
     html += '</button>';
+    html += '<button class="btn-outline" id="openNamesOnlyViewBtn" style="margin-top:10px;width:100%;">&#8599; Open queue only view</button>';
     if (state.settingsOpen) {
       html += '<div class="settings-panel">';
       html += '<div class="code-display">';
@@ -757,7 +758,6 @@ function renderRoom() {
       html += '<label>Names-only display link</label>';
       html += '<div class="link-row"><input type="text" id="namesOnlyLinkField" readonly value="' + esc(namesOnlyLink(state.roomCode)) + '">';
       html += '<button class="btn-outline" id="copyNamesOnlyLinkBtn">Copy</button></div>';
-      html += '<button class="btn-outline" id="openNamesOnlyViewBtn" style="margin-top:10px;width:100%;">&#8599; Open queue only view</button>';
       html += '<label>Accent Color <span class="accent-hint">(everyone viewing this room sees it too, and it becomes your default for new rooms)</span></label>';
       html += '<div class="accent-row">';
       html += '<input type="color" id="accentColorPicker" value="' + (HEX_RE.test(state.accentColor) && state.accentColor.length === 7 ? state.accentColor : DEFAULT_ACCENT) + '">';
