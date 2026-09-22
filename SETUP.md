@@ -20,7 +20,7 @@ Three files, two free accounts, no code changes needed beyond pasting in your ow
    - Collection group: `rooms`, Timestamp field: `expiresAt`
    - Collection group: `entries`, Timestamp field: `expiresAt`
 
-   These tell Firestore to automatically delete any room (and its queue) once its `expiresAt` time passes — 24 hours after creation. It's free and needs no code. Firestore's cleanup itself can lag by up to a day after the expiry moment, but the app already treats a room as "Expired" the instant the 24 hours are up, regardless of when the background cleanup runs.
+   These tell Firestore to automatically delete any room (and its queue) once its `expiresAt` time passes — 5 1/2 days after creation. It's free and needs no code. Firestore's cleanup itself can lag by up to a day after the expiry moment, but the app already treats a room as "Expired" the instant the 5 1/2 days are up, regardless of when the background cleanup runs.
 
 That's it for Firebase — the free (Spark) tier's limits are far beyond what a classroom queue will ever use.
 
@@ -43,7 +43,7 @@ That link is your home page. Bookmark it.
 - In teacher view you can: mark someone **Helped** (moves them into a greyed-out "Already Helped" list below the live queue, and keeps them in the CSV record), **Remove** someone entirely (for mistaken or duplicate entries — this does *not* appear in the CSV), and use the **▲ / ▼** arrows to reorder the queue by hand.
 - **End Room** stops new requests but keeps the data viewable and exportable (handy at the end of a period). **Reopen Room** undoes that.
 - **Delete Room Permanently** immediately and irreversibly wipes the room and its whole queue — download your CSV first if you want a record.
-- Every room **automatically deletes itself 24 hours after creation**, whether or not you ever touch it, so nothing lingers in your Firebase project. Make a **new room** each class period (or each day) — it takes about five seconds and keeps each period's data separate and easy to export in the meantime.
+- Every room **automatically deletes itself 5 1/2 days after creation**, whether or not you ever touch it, so nothing lingers in your Firebase project. Make a **new room** each week — it takes about five seconds and keeps each week's data separate and easy to export in the meantime.
 
 ## A note on the PIN
 

@@ -251,7 +251,7 @@
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const ROOM_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const ROOM_TTL_MS = 5.5 * 24 * 60 * 60 * 1000; // 5 1/2 days
 const ROOM_CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O or 1/I
 function generateRoomCode(len = 5) {
   let code = '';
@@ -604,7 +604,7 @@ function render() {
     setTimeout(() => { window.location.href = window.location.pathname; }, 4000);
   }
 
-  html += '<div class="footer-note">Help Queue &middot; built for Ms. Herrick\'s classroom &middot; rooms auto-delete 24 hours after creation &middot; <a href="privacy.html">Privacy Policy</a></div></div>';
+  html += '<div class="footer-note">Help Queue &middot; built for Ms. Herrick\'s classroom &middot; rooms auto-delete 5 1/2 days after creation &middot; <a href="privacy.html">Privacy Policy</a></div></div>';
   root.innerHTML = html;
   wireEvents();
   updateNotificationUI();

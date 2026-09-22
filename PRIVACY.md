@@ -25,11 +25,11 @@ Anyone with a room's link can view that room's live queue while it's open — th
 
 ## How long it's kept
 
-Every room and everything in it — the room record and every queue entry — is **automatically and permanently deleted 24 hours after the room is created.** This isn't optional or something a teacher has to remember to do; it's enforced by the hosting database's built-in expiration feature. If a teacher downloads a CSV before that window closes, that exported file is theirs to keep or delete as they choose — this policy only covers data inside the app itself.
+Every room and everything in it — the room record and every queue entry — is **automatically and permanently deleted 5 1/2 days after the room is created.** This isn't optional or something a teacher has to remember to do; it's enforced by the hosting database's built-in expiration feature. If a teacher downloads a CSV before that window closes, that exported file is theirs to keep or delete as they choose — this policy only covers data inside the app itself.
 
 ## Where it's stored
 
-Data is stored in Google Firebase (Firestore), a cloud database, only for the 24-hour lifespan of a room. It is not shared with, or sold to, any third party.
+Data is stored in Google Firebase (Firestore), a cloud database, only for the 5 1/2-day lifespan of a room. It is not shared with, or sold to, any third party.
 
 ## Questions
 

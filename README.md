@@ -8,7 +8,7 @@ A free, no-login digital help queue for the classroom. Students request help wit
 - **Share the room link** — students open it, type their name and problem, and appear instantly in a shared live queue.
 - **Manage the room** — enter the PIN to unlock teacher controls: mark students "Helped," remove entries, reorder the queue, end the room, reopen it, or delete it outright.
 - **Export the record** — download a CSV of every request in the room (timestamp, name, problem, and when they were helped).
-- **Auto-expiry** — every room and its data are automatically deleted 24 hours after creation, no matter what, so nothing accumulates in your Firebase project.
+- **Auto-expiry** — every room and its data are automatically deleted 5 1/2 days after creation, no matter what, so nothing accumulates in your Firebase project.
 
 Each room is independent, so a new one can be created per class period or per day without any data mixing between them.
 
